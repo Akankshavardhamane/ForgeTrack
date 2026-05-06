@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const TopBar = ({ role }) => {
@@ -47,18 +48,27 @@ const TopBar = ({ role }) => {
       </div>
 
       <div className="flex items-center gap-4">
-        <input 
-          type="text" 
-          placeholder="Search..." 
-          className="input h-10 w-64 hidden md:block rounded-full bg-surface-inset border-subtle"
-        />
-        <div className="flex items-center gap-3 pl-4 border-l border-subtle">
-          <div className="flex flex-col items-end hidden sm:flex">
-            <span className="text-body-sm font-medium text-primary">
-              {user?.display_name || 'Loading...'}
-            </span>
-            <span className="text-caption text-tertiary capitalize">{role}</span>
+        {/* Calendar Icon Button */}
+        <button className="w-10 h-10 rounded-xl bg-surface-inset border border-subtle flex items-center justify-center text-secondary hover:text-primary transition-colors">
+          <Calendar size={20} />
+        </button>
+
+        {/* Search Bar */}
+        <div className="relative hidden md:block">
+          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-tertiary">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
+          <input 
+            type="text" 
+            placeholder="Search sessions..." 
+            className="input h-10 w-64 pl-10 rounded-xl bg-surface-inset border-subtle text-body-sm"
+          />
+        </div>
+
+        {/* Profile Avatar */}
+        <div className="flex items-center gap-3 pl-4 border-l border-subtle">
           <div className="w-10 h-10 rounded-full bg-surface-raised flex items-center justify-center text-primary font-medium border border-subtle">
             {user?.display_name ? user.display_name.charAt(0).toUpperCase() : '?'}
           </div>

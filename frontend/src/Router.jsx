@@ -14,6 +14,11 @@ import MarkAttendance from './pages/MarkAttendance';
 import StudentHistory from './pages/StudentHistory';
 import Materials from './pages/Materials';
 
+// Student Pages
+import MyAttendance from './pages/student/MyAttendance';
+import UpcomingSessions from './pages/student/UpcomingSessions';
+import StudyMaterials from './pages/student/StudyMaterials';
+
 const RootRedirector = () => {
   const context = useOutletContext();
   const role = context?.role || 'mentor';
@@ -48,9 +53,10 @@ const AppRouter = () => {
 
             {/* Student Routes */}
             <Route element={<RoleGuard allowedRoles={['student']} />}>
-              <Route path="/me/attendance" element={<Placeholder title="My Attendance" />} />
-              <Route path="/me/upcoming" element={<Placeholder title="Upcoming Sessions" />} />
-              <Route path="/me/materials" element={<Placeholder title="Study Materials" />} />
+              <Route path="/me/attendance" element={<MyAttendance />} />
+              <Route path="/me/upcoming" element={<UpcomingSessions />} />
+              <Route path="/me/materials" element={<StudyMaterials />} />
+              <Route path="/me/appeals" element={<Placeholder title="Attendance Appeals" />} />
             </Route>
 
           </Route>

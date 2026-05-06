@@ -25,12 +25,7 @@ const Login = () => {
 
       if (signInError) throw signInError;
 
-      // If student and password is their USN (default), force change password
-      if (role === 'student' && password === identifier) {
-        navigate('/change-password');
-      } else {
-        navigate('/'); // RoleGuard will redirect to appropriate dashboard
-      }
+      navigate('/'); // RoleGuard will redirect to appropriate dashboard
     } catch (err) {
       setError(err.message === 'Invalid login credentials' ? 'Invalid credentials' : err.message);
     } finally {

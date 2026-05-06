@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -6,14 +6,34 @@ import {
   Users, 
   BookOpen, 
   Upload, 
-  UserCheck, 
   Calendar, 
-  Settings, 
+  MessageSquare,
   LogOut 
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const Sidebar = ({ role }) => {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && mounted && role === 'student') {
+        const { data } = await supabase
+          .from('users')
+          .select('display_name')
+          .eq('id', session.user.id)
+          .single();
+        if (data) {
+          setUser(data);
+        }
+      }
+    };
+    fetchUser();
+    return () => mounted = false;
+  }, [role]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = '/login';
@@ -46,9 +66,17 @@ const Sidebar = ({ role }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
+      <div className="flex-1 overflow-y-auto py-6 space-y-8">
+        {role === 'student' && (
+          <div className="px-8 pb-4 border-b border-subtle">
+            <p className="text-body-sm text-secondary">Welcome Back,</p>
+            <p className="text-h4 text-white">{user?.display_name || 'Student'}</p>
+            <p className="text-[10px] font-bold text-tertiary mt-1 tracking-widest uppercase">STUDENT</p>
+          </div>
+        )}
+
         {role === 'mentor' && (
-          <>
+          <div className="px-4 space-y-8">
             <div>
               <div className="text-label text-tertiary mb-3 px-4">OVERVIEW</div>
               <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
@@ -65,28 +93,30 @@ const Sidebar = ({ role }) => {
               <div className="text-label text-tertiary mb-3 px-4">DATA</div>
               <NavItem to="/upload" icon={Upload} label="Upload CSV" />
             </div>
-          </>
+          </div>
         )}
 
         {role === 'student' && (
-          <>
+          <div className="px-4 space-y-8">
             <div>
-              <div className="text-label text-tertiary mb-3 px-4">MY TRACKER</div>
+              <div className="text-label text-tertiary mb-3 px-4">OVERVIEW</div>
               <div className="space-y-1">
-                <NavItem to="/me/attendance" icon={UserCheck} label="My Attendance" />
-                <NavItem to="/me/upcoming" icon={Calendar} label="Upcoming" />
+                <NavItem to="/me/attendance" icon={LayoutDashboard} label="My Dashboard" />
               </div>
             </div>
             <div>
-              <div className="text-label text-tertiary mb-3 px-4">RESOURCES</div>
-              <NavItem to="/me/materials" icon={BookOpen} label="Materials" />
+              <div className="text-label text-tertiary mb-3 px-4">ACADEMIC</div>
+              <div className="space-y-1">
+                <NavItem to="/me/materials" icon={BookOpen} label="My Materials" />
+                {/* Dummy link for UI match */}
+                <NavItem to="/me/appeals" icon={MessageSquare} label="Attendance Appeals" />
+              </div>
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      <div className="p-4 border-t border-subtle space-y-1">
-        {/* Placeholder for settings, not in spec but standard */}
+      <div className="p-4 border-t border-subtle space-y-4">
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-4 h-[44px] w-full rounded-lg transition-colors text-body font-medium text-secondary hover:bg-surface hover:text-primary"
@@ -94,6 +124,11 @@ const Sidebar = ({ role }) => {
           <LogOut size={20} strokeWidth={1.75} />
           Logout
         </button>
+        
+        <div className="px-4 flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-success-fg animate-pulse"></div>
+          <span className="text-[10px] font-bold text-tertiary tracking-widest uppercase">DB CONNECTED</span>
+        </div>
       </div>
     </div>
   );

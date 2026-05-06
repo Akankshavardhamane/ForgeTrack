@@ -11,11 +11,37 @@
 
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
+DECLARE
+  v_usn TEXT;
+  v_student_id INTEGER;
+  v_name TEXT;
 BEGIN
-  -- If this user is signing up (mentor, etc) and not seeded
-  INSERT INTO public.users (id, email, role, display_name)
-  VALUES (new.id, new.email, 'mentor', new.email)
-  ON CONFLICT (id) DO NOTHING;
+  -- Check if the email suggests it's a student (ends with @forgetrack.com)
+  IF new.email LIKE '%@forgetrack.com' THEN
+    -- Extract USN from email (everything before @)
+    v_usn := split_part(new.email, '@', 1);
+    
+    -- Look up the student in the public.students table (case-insensitive)
+    SELECT id, name INTO v_student_id, v_name FROM public.students WHERE LOWER(usn) = LOWER(v_usn);
+    
+    IF v_student_id IS NOT NULL THEN
+      -- Create a student user linked to their student profile
+      INSERT INTO public.users (id, email, role, student_id, display_name)
+      VALUES (new.id, new.email, 'student', v_student_id, v_name)
+      ON CONFLICT (id) DO NOTHING;
+    ELSE
+      -- Fallback if student not found in table
+      INSERT INTO public.users (id, email, role, student_id, display_name)
+      VALUES (new.id, new.email, 'student', null, new.email)
+      ON CONFLICT (id) DO NOTHING;
+    END IF;
+  ELSE
+    -- If not @forgetrack.com, default to mentor
+    INSERT INTO public.users (id, email, role, display_name)
+    VALUES (new.id, new.email, 'mentor', new.email)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
