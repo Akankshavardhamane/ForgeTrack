@@ -17,13 +17,15 @@ const Login = () => {
 
     try {
       const email = role === 'student' 
-        ? `${identifier.toLowerCase()}@forgetrack.com` 
-        : identifier;
+        ? `${identifier.trim().toLowerCase()}@forgetrack.com` 
+        : identifier.trim();
+      
+      const cleanPassword = password.trim();
       
       // Try official login
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password: role === 'student' ? identifier.toUpperCase() : password,
+        password: role === 'student' ? identifier.trim().toUpperCase() : cleanPassword,
       });
 
       if (signInError) {
