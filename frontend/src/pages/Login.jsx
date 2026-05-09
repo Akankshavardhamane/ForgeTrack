@@ -23,7 +23,7 @@ const Login = () => {
       // Try official login
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password: identifier.toUpperCase(),
+        password: role === 'student' ? identifier.toUpperCase() : password,
       });
 
       if (signInError) {
