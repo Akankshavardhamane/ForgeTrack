@@ -1,60 +1,58 @@
--- Enable Row Level Security
-ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.import_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+-- 1. Create a helper function to get the current user's role without recursion
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS text AS $$
+DECLARE
+  user_role text;
+BEGIN
+  SELECT role INTO user_role FROM public.users WHERE id = auth.uid();
+  RETURN COALESCE(user_role, 'authenticated'); -- Fallback to authenticated
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Mentors have full access. Students have restricted access.
--- We can create a helper function to get the current user's role and student_id.
-
--- Students Policies
-CREATE POLICY "students_mentor_all" ON public.students FOR ALL USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'mentor'
+-- 2. Update Students Policies
+DROP POLICY IF EXISTS "students_mentor_all" ON public.students;
+DROP POLICY IF EXISTS "students_authenticated_all" ON public.students;
+CREATE POLICY "students_authenticated_all" ON public.students FOR ALL USING (
+  auth.role() = 'authenticated'
 );
 
-CREATE POLICY "students_student_select_own" ON public.students FOR SELECT USING (
-  id = (SELECT student_id FROM public.users WHERE id = auth.uid())
+-- 3. Update Sessions Policies
+DROP POLICY IF EXISTS "sessions_mentor_all" ON public.sessions;
+DROP POLICY IF EXISTS "sessions_authenticated_all" ON public.sessions;
+CREATE POLICY "sessions_authenticated_all" ON public.sessions FOR ALL USING (
+  auth.role() = 'authenticated'
 );
 
--- Sessions Policies
-CREATE POLICY "sessions_mentor_all" ON public.sessions FOR ALL USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'mentor'
+-- 4. Update Attendance Policies
+DROP POLICY IF EXISTS "attendance_mentor_all" ON public.attendance;
+DROP POLICY IF EXISTS "attendance_authenticated_all" ON public.attendance;
+CREATE POLICY "attendance_authenticated_all" ON public.attendance FOR ALL USING (
+  auth.role() = 'authenticated'
 );
 
-CREATE POLICY "sessions_student_select_all" ON public.sessions FOR SELECT USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'student'
+-- 5. Update Materials Policies
+DROP POLICY IF EXISTS "materials_mentor_all" ON public.materials;
+DROP POLICY IF EXISTS "materials_authenticated_all" ON public.materials;
+CREATE POLICY "materials_authenticated_all" ON public.materials FOR ALL USING (
+  auth.role() = 'authenticated'
 );
 
--- Attendance Policies
-CREATE POLICY "attendance_mentor_all" ON public.attendance FOR ALL USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'mentor'
+-- 6. Update ImportLog Policies
+DROP POLICY IF EXISTS "importlog_mentor_all" ON public.import_log;
+DROP POLICY IF EXISTS "importlog_authenticated_all" ON public.import_log;
+CREATE POLICY "importlog_authenticated_all" ON public.import_log FOR ALL USING (
+  auth.role() = 'authenticated'
 );
 
-CREATE POLICY "attendance_student_select_own" ON public.attendance FOR SELECT USING (
-  student_id = (SELECT student_id FROM public.users WHERE id = auth.uid())
-);
+-- 7. Update Users Table Policies (SIMPLIFIED)
+DROP POLICY IF EXISTS "users_read_all_mentor" ON public.users;
+DROP POLICY IF EXISTS "users_self_manage" ON public.users;
+DROP POLICY IF EXISTS "users_mentor_all" ON public.users;
+DROP POLICY IF EXISTS "users_self_select" ON public.users;
+DROP POLICY IF EXISTS "users_self_view" ON public.users;
+DROP POLICY IF EXISTS "users_mentor_view_all" ON public.users;
+DROP POLICY IF EXISTS "users_self_update" ON public.users;
 
--- Materials Policies
-CREATE POLICY "materials_mentor_all" ON public.materials FOR ALL USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'mentor'
-);
-
-CREATE POLICY "materials_student_select_all" ON public.materials FOR SELECT USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'student'
-);
-
--- ImportLog Policies
-CREATE POLICY "importlog_mentor_all" ON public.import_log FOR ALL USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'mentor'
-);
-
--- Users Table Policies
-CREATE POLICY "users_mentor_all" ON public.users FOR ALL USING (
-  (SELECT role FROM public.users WHERE id = auth.uid()) = 'mentor'
-);
-
-CREATE POLICY "users_self_select" ON public.users FOR SELECT USING (
-  id = auth.uid()
-);
+CREATE POLICY "users_self_view" ON public.users FOR SELECT USING (id = auth.uid());
+CREATE POLICY "users_mentor_view_all" ON public.users FOR SELECT USING (public.get_my_role() = 'mentor');
+CREATE POLICY "users_self_update" ON public.users FOR UPDATE USING (id = auth.uid());

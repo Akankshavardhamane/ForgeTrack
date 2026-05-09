@@ -11,6 +11,7 @@ import Placeholder from './pages/Placeholder';
 
 import Dashboard from './pages/Dashboard';
 import MarkAttendance from './pages/MarkAttendance';
+import BulkAttendance from './pages/BulkAttendance';
 import StudentHistory from './pages/StudentHistory';
 import Materials from './pages/Materials';
 
@@ -48,8 +49,9 @@ const AppRouter = () => {
               <Route path="/attendance" element={<MarkAttendance />} />
               <Route path="/history" element={<StudentHistory />} />
               <Route path="/materials" element={<Materials />} />
-              <Route path="/upload" element={<Placeholder title="CSV Upload Agent" />} />
+              <Route path="/upload" element={<BulkAttendance />} />
             </Route>
+
 
             {/* Student Routes */}
             <Route element={<RoleGuard allowedRoles={['student']} />}>
