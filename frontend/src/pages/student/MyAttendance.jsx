@@ -60,26 +60,48 @@ const MyAttendance = () => {
       setLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        const fallbackSessionStr = localStorage.getItem('forge_student_session');
+        const fallbackSession = fallbackSessionStr ? JSON.parse(fallbackSessionStr) : null;
 
-        // Fetch user and student details
-        const { data: userData } = await supabase
-          .from('users')
-          .select(`
-            student_id, 
-            display_name,
-            students (usn, branch_code)
-          `)
-          .eq('id', session.user.id)
-          .single();
+        if (!session && !fallbackSession) return;
 
-        if (!userData || !userData.student_id) return;
-
-        const studentInfo = {
-          studentName: userData.display_name,
-          usn: userData.students?.usn || '',
-          branch: userData.students?.branch_code || ''
+        const userId = session ? session.user.id : fallbackSession.id;
+        
+        let finalStudentId = fallbackSession?.student_id;
+        let studentInfo = {
+          studentName: fallbackSession?.display_name || 'Student',
+          usn: fallbackSession?.usn || '',
+          branch: fallbackSession?.branch || ''
         };
+
+        // If we have an official session, or we need to refresh details from DB
+        if (session || !finalStudentId) {
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select(`
+                student_id, 
+                display_name,
+                students (usn, branch_code, name)
+              `)
+              .eq('id', userId)
+              .single();
+
+            if (userData) {
+              finalStudentId = userData.student_id;
+              studentInfo = {
+                studentName: userData.display_name || userData.students?.name || studentInfo.studentName,
+                usn: userData.students?.usn || studentInfo.usn,
+                branch: userData.students?.branch_code || studentInfo.branch
+              };
+            }
+          } catch (e) {
+            console.log("Could not fetch user record, using fallback session data.");
+          }
+        }
+
+        // If we still don't have a student ID, we can't fetch attendance
+        if (!finalStudentId) return;
 
         // Fetch attendance
         const { data: attendanceList } = await supabase
@@ -91,7 +113,7 @@ const MyAttendance = () => {
               topic
             )
           `)
-          .eq('student_id', userData.student_id)
+          .eq('student_id', finalStudentId)
           .order('session_id', { ascending: false });
 
         // Fetch recent materials

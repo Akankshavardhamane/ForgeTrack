@@ -63,7 +63,8 @@ const BulkAttendance = () => {
             
             for (const name of selectedSheets) {
               const ws = wb.Sheets[name];
-              let data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+              // Use raw: false to get the strings as they appear in Excel (avoids locale-based date number issues)
+              let data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
               
               // Skip empty rows at the top
               let headerRowIndex = 0;
@@ -76,46 +77,94 @@ const BulkAttendance = () => {
               const headers = data[headerRowIndex];
               const actualData = data.slice(headerRowIndex);
               
-              let usnIdx = -1;
-              let nameIdx = -1;
-              const dateCols = [];
+                let usnIdx = -1;
+                let nameIdx = -1;
+                let emailIdx = -1;
+                const dateCols = [];
 
-              headers.forEach((h, i) => {
-                if (!h) return;
-                const head = String(h).toLowerCase();
-                if (head.includes('usn') || head.includes('id')) usnIdx = i;
-                if (head.includes('name')) nameIdx = i;
+                headers.forEach((h, i) => {
+                  if (h === undefined || h === null) return;
+                  
+                  // 1. Check for USN/Name/Email
+                  const head = String(h).toLowerCase().trim();
+                  if (head === 'usn' || (head.includes('usn') && !head.includes(' ')) || head === 'id' || head === 'student id') usnIdx = i;
+                  if (head.includes('name') && !head.includes('branch')) nameIdx = i;
+                  if (head.includes('email') || head.includes('mail')) emailIdx = i;
                 
-                // Enhanced date detection for DD/MM/YY or DD-MM-YYYY
-                if (/\d{1,2}[/-]\d{1,2}/.test(head) || /[A-Za-z]{3,}\s\d{1,2}/.test(head)) {
-                  // Try to parse the date from the header itself
-                  let parsedDate = null;
-                  try {
-                    // Handle DD/MM/YY
-                    const parts = head.match(/(\d{1,2})[/-](\d{1,2})[/-]?(\d{2,4})?/);
-                    if (parts) {
-                      const day = parseInt(parts[1]);
-                      const month = parseInt(parts[2]);
-                      const year = parts[3] ? (parts[3].length === 2 ? '20' + parts[3] : parts[3]) : '2026';
-                      parsedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    }
-                  } catch (e) {}
+                // 2. Date Detection
+                let parsedDate = null;
+                let isPotentialDate = false;
 
+                // Handle Excel numeric dates (usually 40000-60000 range for current years)
+                if (typeof h === 'number' && h > 40000 && h < 60000) {
+                  isPotentialDate = true;
+                  try {
+                    const dateObj = new Date(Math.round((h - 25569) * 86400 * 1000));
+                    parsedDate = dateObj.toISOString().split('T')[0];
+                  } catch (e) {}
+                } 
+                // Handle string dates
+                else {
+                  const dateStr = String(h).trim();
+                  // Patterns: DD/MM/YY, DD-MM-YYYY, DD/MM, DD-MMM, MMM-DD, etc.
+                  const datePattern = /(\d{1,2})[/-](\d{1,2}|[A-Za-z]{3,})[/-]?(\d{2,4})?/;
+                  const reverseDatePattern = /([A-Za-z]{3,})\s?(\d{1,2})/;
+                  
+                  if (datePattern.test(dateStr) || reverseDatePattern.test(dateStr)) {
+                    isPotentialDate = true;
+                    
+                    // Try to parse DD/MM/YY or DD-MMM
+                    const match = dateStr.match(datePattern);
+                    if (match) {
+                      const day = parseInt(match[1]);
+                      const monthPart = match[2];
+                      const yearPart = match[3];
+                      
+                      let month;
+                      if (isNaN(parseInt(monthPart))) {
+                        // Handle MMM (Jan, Feb, etc.)
+                        const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+                        month = months.indexOf(monthPart.toLowerCase().substring(0, 3)) + 1;
+                      } else {
+                        month = parseInt(monthPart);
+                      }
+                      
+                      if (month > 0 && month <= 12 && day > 0 && day <= 31) {
+                        const year = yearPart ? (yearPart.length === 2 ? '20' + yearPart : yearPart) : '2026';
+                        parsedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      }
+                    } else {
+                      // Try to parse MMM DD
+                      const revMatch = dateStr.match(reverseDatePattern);
+                      if (revMatch) {
+                        const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+                        const month = months.indexOf(revMatch[1].toLowerCase().substring(0, 3)) + 1;
+                        const day = parseInt(revMatch[2]);
+                        if (month > 0 && day > 0) {
+                          parsedDate = `2026-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                if (isPotentialDate) {
                   dateCols.push({ 
                     index: i, 
-                    header: h, 
+                    header: String(h), 
                     detectedDate: parsedDate, 
                     status: parsedDate ? 'ok' : 'missing' 
                   });
                 }
               });
 
-              sheetResults[name] = { 
-                usnColumnIndex: usnIdx, 
-                nameColumnIndex: nameIdx, 
-                dateColumns: dateCols,
-                fullData: actualData 
-              };
+                sheetResults[name] = { 
+                  usnColumnIndex: usnIdx, 
+                  nameColumnIndex: nameIdx, 
+                  emailColumnIndex: emailIdx,
+                  dateColumns: dateCols,
+                  fullData: actualData 
+                };
             }
             resolve(sheetResults);
           } catch (err) {
@@ -258,13 +307,20 @@ const BulkAttendance = () => {
       const uniqueStudents = new Map();
       Object.entries(analysisResults).forEach(([sheetName, res]) => {
         if (!selectedSheets.includes(sheetName)) return;
-        const { fullData, usnColumnIndex, nameColumnIndex } = res;
-        for (let i = 2; i < fullData.length; i++) {
+        const { fullData, usnColumnIndex, nameColumnIndex, emailColumnIndex } = res;
+        for (let i = 1; i < fullData.length; i++) {
           const row = fullData[i];
-          const usn = String(row[usnColumnIndex] || '').trim().toUpperCase();
+          let usn = String(row[usnColumnIndex] || '').trim().toUpperCase();
           const name = String(row[nameColumnIndex] || '').trim();
+          const email = emailColumnIndex !== -1 ? String(row[emailColumnIndex] || '').trim() : '';
+          
+          // Fallback USN for students without one
+          if (!usn && name) {
+            usn = email ? email.toUpperCase() : `GUEST-${name.replace(/\s+/g, '_').toUpperCase()}`;
+          }
+
           if (usn && name && !uniqueStudents.has(usn)) {
-            uniqueStudents.set(usn, { usn, name, branch_code: 'General' });
+            uniqueStudents.set(usn, { usn, name, email, branch_code: 'General' });
           }
         }
       });
@@ -330,17 +386,26 @@ const BulkAttendance = () => {
           }
 
           const attendanceRecords = [];
-          for (let j = 2; j < fullData.length; j++) {
+          for (let j = 1; j < fullData.length; j++) {
             const row = fullData[j];
-            const usn = String(row[usnColumnIndex] || '').trim().toUpperCase();
+            let usn = String(row[analysis.usnColumnIndex] || '').trim().toUpperCase();
+            const name = String(row[analysis.nameColumnIndex] || '').trim();
+            const email = analysis.emailColumnIndex !== -1 ? String(row[analysis.emailColumnIndex] || '').trim() : '';
+
+            if (!usn && name) {
+              usn = email ? email.toUpperCase() : `GUEST-${name.replace(/\s+/g, '_').toUpperCase()}`;
+            }
+
             const studentId = studentMap[usn];
             if (!studentId) continue;
 
             const val = row[col.index];
+            const valStr = String(val).toLowerCase().trim();
             const isPresent = val === true || val === 'P' || val === 1 || 
-                             String(val).toLowerCase() === 'present' || 
-                             String(val).toLowerCase() === 'p' ||
-                             String(val) === '1';
+                             valStr === 'present' || 
+                             valStr === 'p' ||
+                             valStr === '1' ||
+                             valStr === 'true';
             
             attendanceRecords.push({
               student_id: studentId,

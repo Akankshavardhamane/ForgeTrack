@@ -11,6 +11,9 @@ const TopBar = ({ role }) => {
     let mounted = true;
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      const fallbackSessionStr = localStorage.getItem('forge_student_session');
+      const fallbackSession = fallbackSessionStr ? JSON.parse(fallbackSessionStr) : null;
+
       if (session && mounted) {
         const { data } = await supabase
           .from('users')
@@ -23,6 +26,8 @@ const TopBar = ({ role }) => {
         } else {
           setUser({ display_name: session.user.email });
         }
+      } else if (fallbackSession && mounted) {
+        setUser({ display_name: fallbackSession.display_name });
       }
     };
     fetchUser();

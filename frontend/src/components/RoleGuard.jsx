@@ -14,7 +14,11 @@ const RoleGuard = ({ allowedRoles }) => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) {
+      // Check for fallback session if no official session exists
+      const fallbackSessionStr = localStorage.getItem('forge_student_session');
+      const fallbackSession = fallbackSessionStr ? JSON.parse(fallbackSessionStr) : null;
+
+      if (!session && !fallbackSession) {
         if (mounted) {
           setIsAuthenticated(false);
           setLoading(false);
@@ -24,20 +28,26 @@ const RoleGuard = ({ allowedRoles }) => {
 
       setIsAuthenticated(true);
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
+      if (session) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
 
-      if (mounted) {
-        if (data && !error && data.role) {
-          setRole(data.role);
-        } else {
-          // Fallback to mentor if the Supabase database trigger failed to create the user row
-          setRole('mentor');
+        if (mounted) {
+          if (data && !error && data.role) {
+            setRole(data.role);
+          } else {
+            setRole('mentor');
+          }
+          setLoading(false);
         }
-        setLoading(false);
+      } else if (fallbackSession) {
+        if (mounted) {
+          setRole(fallbackSession.role || 'student');
+          setLoading(false);
+        }
       }
     };
 

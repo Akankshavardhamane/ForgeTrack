@@ -19,6 +19,9 @@ const Sidebar = ({ role }) => {
     let mounted = true;
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      const fallbackSessionStr = localStorage.getItem('forge_student_session');
+      const fallbackSession = fallbackSessionStr ? JSON.parse(fallbackSessionStr) : null;
+
       if (session && mounted && role === 'student') {
         const { data } = await supabase
           .from('users')
@@ -28,6 +31,8 @@ const Sidebar = ({ role }) => {
         if (data) {
           setUser(data);
         }
+      } else if (fallbackSession && mounted) {
+        setUser({ display_name: fallbackSession.display_name });
       }
     };
     fetchUser();
@@ -36,6 +41,7 @@ const Sidebar = ({ role }) => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem('forge_student_session');
     window.location.href = '/login';
   };
 
